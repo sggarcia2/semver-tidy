@@ -1,0 +1,15 @@
+[package]
+name = "semver-tidy"
+version = "0.1.0"
+edition = "2021"
+authors = ["sggarcia2"]
+description = "Normalizes messy semantic version strings and reports errors with line and column numbers."
+license = "MIT"
+
+[[bin]]
+name = "semver-tidy"
+path = "src/main.rs"
+
+[lib]
+name = "semver_tidy"
+path = "src/lib.rs"
