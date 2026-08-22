@@ -79,9 +79,9 @@ expected and where.
 
 ## Status
 
-Early skeleton. The parser and CLI work end to end but there's no test
-suite yet and the identifier character set hasn't been checked against
-the full semver 2.0.0 grammar.
+The parser and CLI work end to end and are covered by an integration
+test suite (`tests/parser.rs`). The identifier character set still
+hasn't been checked against the full semver 2.0.0 grammar.
 
 ## License
 
