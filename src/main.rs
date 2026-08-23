@@ -7,8 +7,10 @@ use semver_tidy::normalize_line;
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
+    let check_only = args.iter().any(|a| a == "--check");
+    let path = args.iter().find(|a| a.as_str() != "--check");
 
-    let lines: Vec<String> = match args.first() {
+    let lines: Vec<String> = match path {
         Some(path) => match fs::read_to_string(path) {
             Ok(contents) => contents.lines().map(str::to_string).collect(),
             Err(e) => {
@@ -32,7 +34,9 @@ fn main() -> ExitCode {
 
         match normalize_line(raw_line, line_no) {
             Ok(normalized) => {
-                let _ = writeln!(out, "{normalized}");
+                if !check_only {
+                    let _ = writeln!(out, "{normalized}");
+                }
             }
             Err(e) => {
                 had_error = true;

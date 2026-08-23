@@ -37,6 +37,21 @@ $ echo "v1.2.3" | semver-tidy
 1.2.3
 ```
 
+Pass `--check` to validate without printing the normalized output - useful
+in scripts that only care whether every line parsed:
+
+```
+$ semver-tidy --check versions.txt; echo "exit: $?"
+exit: 0
+
+$ printf '1.2.3\n1.2\n' | semver-tidy --check
+error: expected '.' followed by the patch version, found end of line
+  --> line 2, column 4
+  |
+2 | 1.2
+  |    ^
+```
+
 ## Error messages
 
 When a line isn't parseable, the point of failure is reported with the
@@ -79,9 +94,16 @@ expected and where.
 
 ## Status
 
-The parser and CLI work end to end and are covered by an integration
-test suite (`tests/parser.rs`). The identifier character set still
-hasn't been checked against the full semver 2.0.0 grammar.
+The parser and CLI work end to end and are covered by integration test
+suites (`tests/parser.rs` for parsing, `tests/cli.rs` for the binary).
+The identifier character set already matches the semver 2.0.0 grammar
+(`[0-9A-Za-z-]`, non-empty); the one deliberate deviation from a strict
+reading is that numeric pre-release identifiers with leading zeros are
+normalized rather than rejected, consistent with how this tool treats
+the version core.
+
+Comparing two normalized versions and stripping build metadata on
+output are still open.
 
 ## License
 

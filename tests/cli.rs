@@ -1,0 +1,49 @@
+use std::io::Write;
+use std::process::{Command, Stdio};
+
+fn run(args: &[&str], stdin_input: &str) -> (String, String, bool) {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_semver-tidy"))
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to start semver-tidy");
+
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(stdin_input.as_bytes())
+        .expect("failed to write stdin");
+
+    let output = child.wait_with_output().expect("failed to wait on child");
+    (
+        String::from_utf8(output.stdout).expect("stdout was not utf-8"),
+        String::from_utf8(output.stderr).expect("stderr was not utf-8"),
+        output.status.success(),
+    )
+}
+
+#[test]
+fn without_check_flag_normalized_output_is_printed() {
+    let (stdout, _stderr, success) = run(&[], "v1.2.3\n1.02.3\n");
+    assert_eq!(stdout, "1.2.3\n1.2.3\n");
+    assert!(success);
+}
+
+#[test]
+fn check_mode_suppresses_normalized_output_on_success() {
+    let (stdout, stderr, success) = run(&["--check"], "v1.2.3\n1.02.3\n");
+    assert_eq!(stdout, "");
+    assert_eq!(stderr, "");
+    assert!(success);
+}
+
+#[test]
+fn check_mode_still_reports_errors_and_exits_nonzero() {
+    let (stdout, stderr, success) = run(&["--check"], "v1.2.3\n1.2\n");
+    assert_eq!(stdout, "");
+    assert!(stderr.contains("expected '.' followed by the patch version"));
+    assert!(!success);
+}
