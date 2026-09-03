@@ -95,15 +95,18 @@ expected and where.
 ## Status
 
 The parser and CLI work end to end and are covered by integration test
-suites (`tests/parser.rs` for parsing, `tests/cli.rs` for the binary).
-The identifier character set already matches the semver 2.0.0 grammar
-(`[0-9A-Za-z-]`, non-empty); the one deliberate deviation from a strict
-reading is that numeric pre-release identifiers with leading zeros are
-normalized rather than rejected, consistent with how this tool treats
-the version core.
+suites (`tests/parser.rs` for parsing, `tests/cli.rs` for the binary,
+`tests/compare.rs` for precedence comparison). The identifier character
+set already matches the semver 2.0.0 grammar (`[0-9A-Za-z-]`, non-empty);
+the one deliberate deviation from a strict reading is that numeric
+pre-release identifiers with leading zeros are normalized rather than
+rejected, consistent with how this tool treats the version core.
 
-Comparing two normalized versions and stripping build metadata on
-output are still open.
+The library exposes `parse_line` for callers that need the structured
+`Version` rather than just the canonical string, and `Version::compare_precedence`
+for ordering two versions by semver rules (build metadata is ignored, as
+the spec requires). There's no CLI flag for comparison yet - it's
+library-only for now. Stripping build metadata on output is still open.
 
 ## License
 

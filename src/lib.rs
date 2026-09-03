@@ -8,6 +8,8 @@
 
 pub mod error;
 
+use std::cmp::Ordering;
+
 use error::{Position, SemverError};
 
 /// A parsed version, split into its normalized parts.
@@ -34,13 +36,75 @@ impl Version {
         }
         out
     }
+
+    /// Orders two versions by semver 2.0.0 precedence (spec item 11):
+    /// major, then minor, then patch, then pre-release identifiers
+    /// compared left to right. A version with no pre-release outranks one
+    /// that has one. Build metadata never affects precedence, so two
+    /// versions differing only in build metadata compare as equal here
+    /// even though [`PartialEq`] would consider them different.
+    ///
+    /// This is a plain method rather than an [`Ord`] impl because that
+    /// build-metadata exception would make it inconsistent with the
+    /// derived [`Eq`], which does compare build metadata.
+    pub fn compare_precedence(&self, other: &Version) -> Ordering {
+        compare_numeric_str(&self.major, &other.major)
+            .then_with(|| compare_numeric_str(&self.minor, &other.minor))
+            .then_with(|| compare_numeric_str(&self.patch, &other.patch))
+            .then_with(|| compare_prerelease(&self.prerelease, &other.prerelease))
+    }
+}
+
+fn compare_prerelease(a: &[String], b: &[String]) -> Ordering {
+    match (a.is_empty(), b.is_empty()) {
+        (true, true) => return Ordering::Equal,
+        (true, false) => return Ordering::Greater,
+        (false, true) => return Ordering::Less,
+        (false, false) => {}
+    }
+
+    for (x, y) in a.iter().zip(b.iter()) {
+        let ord = compare_identifier(x, y);
+        if ord != Ordering::Equal {
+            return ord;
+        }
+    }
+    a.len().cmp(&b.len())
+}
+
+fn compare_identifier(a: &str, b: &str) -> Ordering {
+    let a_numeric = a.chars().all(|c| c.is_ascii_digit());
+    let b_numeric = b.chars().all(|c| c.is_ascii_digit());
+    match (a_numeric, b_numeric) {
+        (true, true) => compare_numeric_str(a, b),
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        (false, false) => a.cmp(b),
+    }
+}
+
+/// Compares two non-negative decimal integer strings by numeric value
+/// without parsing them into an integer type. Both the version core and
+/// numeric pre-release identifiers are normalized to have no leading
+/// zeros (aside from a lone "0") by the time they reach here, so ordering
+/// by length and then lexicographically gives the correct numeric result
+/// for values of any size, including ones too large for a u64.
+fn compare_numeric_str(a: &str, b: &str) -> Ordering {
+    a.len().cmp(&b.len()).then_with(|| a.cmp(b))
+}
+
+/// Parses a single line of input into its structured, normalized form.
+///
+/// `line_no` is only used to annotate errors; it has no effect on parsing.
+pub fn parse_line(raw: &str, line_no: usize) -> Result<Version, SemverError> {
+    Parser::new(raw, line_no).parse()
 }
 
 /// Parses a single line of input and returns its normalized canonical form.
 ///
 /// `line_no` is only used to annotate errors; it has no effect on parsing.
 pub fn normalize_line(raw: &str, line_no: usize) -> Result<String, SemverError> {
-    Parser::new(raw, line_no).parse().map(|v| v.to_canonical_string())
+    parse_line(raw, line_no).map(|v| v.to_canonical_string())
 }
 
 struct Parser<'a> {
