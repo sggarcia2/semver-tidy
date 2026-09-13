@@ -25,12 +25,23 @@ pub struct Version {
 impl Version {
     /// Renders the version back to its canonical `major.minor.patch` form.
     pub fn to_canonical_string(&self) -> String {
+        self.render(true)
+    }
+
+    /// Renders the version back to canonical form, omitting build metadata
+    /// even if the input had some. Build metadata never affects precedence,
+    /// so callers that only care about comparable identity can drop it.
+    pub fn to_canonical_string_without_build(&self) -> String {
+        self.render(false)
+    }
+
+    fn render(&self, include_build: bool) -> String {
         let mut out = format!("{}.{}.{}", self.major, self.minor, self.patch);
         if !self.prerelease.is_empty() {
             out.push('-');
             out.push_str(&self.prerelease.join("."));
         }
-        if !self.build.is_empty() {
+        if include_build && !self.build.is_empty() {
             out.push('+');
             out.push_str(&self.build.join("."));
         }
@@ -105,6 +116,14 @@ pub fn parse_line(raw: &str, line_no: usize) -> Result<Version, SemverError> {
 /// `line_no` is only used to annotate errors; it has no effect on parsing.
 pub fn normalize_line(raw: &str, line_no: usize) -> Result<String, SemverError> {
     parse_line(raw, line_no).map(|v| v.to_canonical_string())
+}
+
+/// Like [`normalize_line`], but the returned string never has a `+build`
+/// suffix, regardless of whether the input carried build metadata.
+///
+/// `line_no` is only used to annotate errors; it has no effect on parsing.
+pub fn normalize_line_without_build(raw: &str, line_no: usize) -> Result<String, SemverError> {
+    parse_line(raw, line_no).map(|v| v.to_canonical_string_without_build())
 }
 
 struct Parser<'a> {

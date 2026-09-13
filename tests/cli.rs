@@ -47,3 +47,25 @@ fn check_mode_still_reports_errors_and_exits_nonzero() {
     assert!(stderr.contains("expected '.' followed by the patch version"));
     assert!(!success);
 }
+
+#[test]
+fn strip_build_flag_drops_build_metadata_from_output() {
+    let (stdout, _stderr, success) = run(&["--strip-build"], "1.0.0+build.007\n1.2.3\n");
+    assert_eq!(stdout, "1.0.0\n1.2.3\n");
+    assert!(success);
+}
+
+#[test]
+fn strip_build_flag_keeps_prerelease() {
+    let (stdout, _stderr, success) = run(&["--strip-build"], "1.0.0-alpha.1+build.7\n");
+    assert_eq!(stdout, "1.0.0-alpha.1\n");
+    assert!(success);
+}
+
+#[test]
+fn strip_build_flag_combines_with_check() {
+    let (stdout, stderr, success) = run(&["--strip-build", "--check"], "1.0.0+build.007\n1.2\n");
+    assert_eq!(stdout, "");
+    assert!(stderr.contains("expected '.' followed by the patch version"));
+    assert!(!success);
+}

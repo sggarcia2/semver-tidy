@@ -3,12 +3,15 @@ use std::fs;
 use std::io::{self, BufRead, Write};
 use std::process::ExitCode;
 
-use semver_tidy::normalize_line;
+use semver_tidy::{normalize_line, normalize_line_without_build};
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
     let check_only = args.iter().any(|a| a == "--check");
-    let path = args.iter().find(|a| a.as_str() != "--check");
+    let strip_build = args.iter().any(|a| a == "--strip-build");
+    let path = args
+        .iter()
+        .find(|a| a.as_str() != "--check" && a.as_str() != "--strip-build");
 
     let lines: Vec<String> = match path {
         Some(path) => match fs::read_to_string(path) {
@@ -32,7 +35,13 @@ fn main() -> ExitCode {
             continue;
         }
 
-        match normalize_line(raw_line, line_no) {
+        let result = if strip_build {
+            normalize_line_without_build(raw_line, line_no)
+        } else {
+            normalize_line(raw_line, line_no)
+        };
+
+        match result {
             Ok(normalized) => {
                 if !check_only {
                     let _ = writeln!(out, "{normalized}");
