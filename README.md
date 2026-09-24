@@ -88,6 +88,21 @@ $ echo "1.0.0+build.007" | semver-tidy --strip-build
 `--strip-build` and `--check` can be combined; stripping only changes what
 would have been printed, not whether a line is considered valid.
 
+Pass `--compare` with two versions to check their relative precedence. It
+prints `<`, `=`, or `>` and ignores build metadata, per spec:
+
+```
+$ semver-tidy --compare 1.2.3 1.10.0
+<
+
+$ semver-tidy --compare 1.0.0+build.1 1.0.0+build.2
+=
+```
+
+If either version fails to parse, the usual error output is printed
+(prefixed with which of the two arguments it was), and the process exits
+non-zero.
+
 ## What counts as valid
 
 - Three dot-separated numeric components (`major.minor.patch`), each
@@ -117,8 +132,7 @@ rejected, consistent with how this tool treats the version core.
 The library exposes `parse_line` for callers that need the structured
 `Version` rather than just the canonical string, and `Version::compare_precedence`
 for ordering two versions by semver rules (build metadata is ignored, as
-the spec requires). There's no CLI flag for comparison yet - it's
-library-only for now.
+the spec requires). The CLI exposes the same comparison through `--compare`.
 
 ## License
 

@@ -69,3 +69,41 @@ fn strip_build_flag_combines_with_check() {
     assert!(stderr.contains("expected '.' followed by the patch version"));
     assert!(!success);
 }
+
+#[test]
+fn compare_prints_less_than() {
+    let (stdout, _stderr, success) = run(&["--compare", "1.2.3", "1.10.0"], "");
+    assert_eq!(stdout, "<\n");
+    assert!(success);
+}
+
+#[test]
+fn compare_prints_equal_ignoring_build_metadata() {
+    let (stdout, _stderr, success) = run(&["--compare", "1.0.0+a", "1.0.0+b"], "");
+    assert_eq!(stdout, "=\n");
+    assert!(success);
+}
+
+#[test]
+fn compare_prints_greater_than() {
+    let (stdout, _stderr, success) = run(&["--compare", "2.0.0", "1.9.9"], "");
+    assert_eq!(stdout, ">\n");
+    assert!(success);
+}
+
+#[test]
+fn compare_rejects_wrong_argument_count() {
+    let (stdout, stderr, success) = run(&["--compare", "1.0.0"], "");
+    assert_eq!(stdout, "");
+    assert!(stderr.contains("requires exactly two versions"));
+    assert!(!success);
+}
+
+#[test]
+fn compare_reports_which_argument_failed_to_parse() {
+    let (stdout, stderr, success) = run(&["--compare", "1.0", "1.0.0"], "");
+    assert_eq!(stdout, "");
+    assert!(stderr.contains("first argument to --compare did not parse"));
+    assert!(stderr.contains("expected '.' followed by the patch version"));
+    assert!(!success);
+}

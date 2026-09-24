@@ -1,12 +1,18 @@
+use std::cmp::Ordering;
 use std::env;
 use std::fs;
 use std::io::{self, BufRead, Write};
 use std::process::ExitCode;
 
-use semver_tidy::{normalize_line, normalize_line_without_build};
+use semver_tidy::{normalize_line, normalize_line_without_build, parse_line};
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
+
+    if args.iter().any(|a| a == "--compare") {
+        return run_compare(&args);
+    }
+
     let check_only = args.iter().any(|a| a == "--check");
     let strip_build = args.iter().any(|a| a == "--strip-build");
     let path = args
@@ -59,4 +65,41 @@ fn main() -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
+}
+
+/// Handles `--compare <a> <b>`, printing `<`, `=`, or `>` for how `a` orders
+/// against `b` under semver precedence (build metadata ignored).
+fn run_compare(args: &[String]) -> ExitCode {
+    let versions: Vec<&String> = args.iter().filter(|a| a.as_str() != "--compare").collect();
+    if versions.len() != 2 {
+        eprintln!(
+            "error: --compare requires exactly two versions, e.g. semver-tidy --compare 1.2.3 1.3.0"
+        );
+        return ExitCode::FAILURE;
+    }
+
+    let left = match parse_line(versions[0], 1) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("error: first argument to --compare did not parse");
+            eprint!("{e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let right = match parse_line(versions[1], 1) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("error: second argument to --compare did not parse");
+            eprint!("{e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let symbol = match left.compare_precedence(&right) {
+        Ordering::Less => "<",
+        Ordering::Equal => "=",
+        Ordering::Greater => ">",
+    };
+    println!("{symbol}");
+    ExitCode::SUCCESS
 }
