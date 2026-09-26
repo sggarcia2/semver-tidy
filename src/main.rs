@@ -15,23 +15,55 @@ fn main() -> ExitCode {
 
     let check_only = args.iter().any(|a| a == "--check");
     let strip_build = args.iter().any(|a| a == "--strip-build");
-    let path = args
+    let paths: Vec<&String> = args
         .iter()
-        .find(|a| a.as_str() != "--check" && a.as_str() != "--strip-build");
-
-    let lines: Vec<String> = match path {
-        Some(path) => match fs::read_to_string(path) {
-            Ok(contents) => contents.lines().map(str::to_string).collect(),
-            Err(e) => {
-                eprintln!("error: could not read '{path}': {e}");
-                return ExitCode::FAILURE;
-            }
-        },
-        None => io::stdin().lock().lines().filter_map(Result::ok).collect(),
-    };
+        .filter(|a| a.as_str() != "--check" && a.as_str() != "--strip-build")
+        .collect();
 
     let stdout = io::stdout();
     let mut out = stdout.lock();
+    let mut had_error = false;
+
+    if paths.is_empty() {
+        let lines: Vec<String> = io::stdin().lock().lines().filter_map(Result::ok).collect();
+        had_error |= process_lines(&lines, None, check_only, strip_build, &mut out);
+    } else {
+        // Only prefix errors with the source file once there's more than
+        // one, so the single-file case keeps its plain error output.
+        let show_filename = paths.len() > 1;
+        for path in paths {
+            match fs::read_to_string(path) {
+                Ok(contents) => {
+                    let lines: Vec<String> = contents.lines().map(str::to_string).collect();
+                    let label = show_filename.then(|| path.as_str());
+                    had_error |= process_lines(&lines, label, check_only, strip_build, &mut out);
+                }
+                Err(e) => {
+                    eprintln!("error: could not read '{path}': {e}");
+                    had_error = true;
+                }
+            }
+        }
+    }
+
+    if had_error {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// Normalizes each line and writes the result to `out`, returning whether
+/// any line failed to parse. `filename`, when set, is printed ahead of
+/// that file's errors so failures stay traceable when multiple files are
+/// given on the command line (line numbers alone reset per file).
+fn process_lines(
+    lines: &[String],
+    filename: Option<&str>,
+    check_only: bool,
+    strip_build: bool,
+    out: &mut impl Write,
+) -> bool {
     let mut had_error = false;
 
     for (idx, raw_line) in lines.iter().enumerate() {
@@ -55,16 +87,15 @@ fn main() -> ExitCode {
             }
             Err(e) => {
                 had_error = true;
+                if let Some(name) = filename {
+                    eprintln!("{name}:");
+                }
                 eprint!("{e}");
             }
         }
     }
 
-    if had_error {
-        ExitCode::FAILURE
-    } else {
-        ExitCode::SUCCESS
-    }
+    had_error
 }
 
 /// Handles `--compare <a> <b>`, printing `<`, `=`, or `>` for how `a` orders

@@ -1,5 +1,16 @@
+use std::fs;
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
+
+/// Writes `contents` to a uniquely named file under the OS temp dir so
+/// concurrently running tests never collide, returning the path to clean
+/// up afterward.
+fn write_temp_file(name: &str, contents: &str) -> PathBuf {
+    let path = std::env::temp_dir().join(format!("semver-tidy-test-{}-{name}", std::process::id()));
+    fs::write(&path, contents).expect("failed to write temp file");
+    path
+}
 
 fn run(args: &[&str], stdin_input: &str) -> (String, String, bool) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_semver-tidy"))
@@ -105,5 +116,63 @@ fn compare_reports_which_argument_failed_to_parse() {
     assert_eq!(stdout, "");
     assert!(stderr.contains("first argument to --compare did not parse"));
     assert!(stderr.contains("expected '.' followed by the patch version"));
+    assert!(!success);
+}
+
+#[test]
+fn single_file_argument_is_read_without_a_filename_prefix() {
+    let path = write_temp_file("single_file", "v1.2.3\n1.02.3\n");
+    let (stdout, stderr, success) = run(&[path.to_str().unwrap()], "");
+    fs::remove_file(&path).ok();
+
+    assert_eq!(stdout, "1.2.3\n1.2.3\n");
+    assert_eq!(stderr, "");
+    assert!(success);
+}
+
+#[test]
+fn multiple_files_are_each_normalized_in_order() {
+    let first = write_temp_file("multi_first", "1.2.3\n");
+    let second = write_temp_file("multi_second", "2.0.0\n");
+    let (stdout, _stderr, success) = run(
+        &[first.to_str().unwrap(), second.to_str().unwrap()],
+        "",
+    );
+    fs::remove_file(&first).ok();
+    fs::remove_file(&second).ok();
+
+    assert_eq!(stdout, "1.2.3\n2.0.0\n");
+    assert!(success);
+}
+
+#[test]
+fn errors_from_multiple_files_are_labeled_with_the_source_file() {
+    let first = write_temp_file("multi_err_first", "1.2\n");
+    let second = write_temp_file("multi_err_second", "3.0.0\n");
+    let (stdout, stderr, success) = run(
+        &[first.to_str().unwrap(), second.to_str().unwrap()],
+        "",
+    );
+    fs::remove_file(&first).ok();
+    fs::remove_file(&second).ok();
+
+    assert_eq!(stdout, "3.0.0\n");
+    assert!(stderr.contains(&format!("{}:", first.display())));
+    assert!(stderr.contains("expected '.' followed by the patch version"));
+    assert!(!success);
+}
+
+#[test]
+fn a_missing_file_among_several_does_not_stop_the_others_from_being_processed() {
+    let second = write_temp_file("multi_missing_second", "1.2.3\n");
+    let missing = std::env::temp_dir().join("semver-tidy-test-this-file-does-not-exist");
+    let (stdout, stderr, success) = run(
+        &[missing.to_str().unwrap(), second.to_str().unwrap()],
+        "",
+    );
+    fs::remove_file(&second).ok();
+
+    assert_eq!(stdout, "1.2.3\n");
+    assert!(stderr.contains("could not read"));
     assert!(!success);
 }

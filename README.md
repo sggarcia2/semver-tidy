@@ -37,6 +37,23 @@ $ echo "v1.2.3" | semver-tidy
 1.2.3
 ```
 
+Or pass more than one file; each is read and normalized in order, with its
+own line numbering. Once there's more than one file, errors are prefixed
+with the path they came from, since "line 2" alone stops being unambiguous:
+
+```
+$ printf '1.2\n' > bad.txt
+$ printf '1.0.0\n' > good.txt
+$ semver-tidy bad.txt good.txt
+1.0.0
+bad.txt:
+error: expected '.' followed by the patch version, found end of line
+  --> line 1, column 4
+  |
+1 | 1.2
+  |    ^
+```
+
 Pass `--check` to validate without printing the normalized output - useful
 in scripts that only care whether every line parsed:
 
